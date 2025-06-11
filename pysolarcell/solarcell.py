@@ -4,8 +4,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.integrate
 import scipy.interpolate
+import importlib.resources
 
-from materials import Material, PEROVSKITE, SILICON
+from pysolarcell.materials import Material, PEROVSKITE, SILICON
 
 # Constants
 h = 6.62607015e-34  # Js
@@ -18,17 +19,18 @@ n_points = 100  # Change to 1000 for straight lines
 
 np.seterr(all='raise')
 
-AM15G_CONST = pd.read_csv('spectra/AM1.5G.txt', skiprows=1, sep='\t',
+spectra = importlib.resources.files('pysolarcell') / 'spectra'
+
+AM15G_CONST = pd.read_csv(spectra / 'AM1.5G.txt', skiprows=1, sep='\t',
                           names=['Wavelength', 'AM0', 'Spectral Irradiance', 'AM1.5D'])
-AM15D_CONST = pd.read_csv('spectra/AM1.5G.txt', skiprows=1, sep='\t',
+AM15D_CONST = pd.read_csv(spectra / 'AM1.5G.txt', skiprows=1, sep='\t',
                           names=['Wavelength', 'AM0', 'AM1.5G', 'Spectral Irradiance'])
-AM0_CONST = pd.read_csv('spectra/AM1.5G.txt', skiprows=1, sep='\t',
+AM0_CONST = pd.read_csv(spectra / 'AM1.5G.txt', skiprows=1, sep='\t',
                         names=['Wavelength','Spectral Irradiance','AM1.5G', 'AM1.5D'])
-LED1_CONST = pd.read_csv('spectra/LED1.txt', skiprows=2, sep='\t',
+LED1_CONST = pd.read_csv(spectra / 'LED1.txt', skiprows=2, sep='\t',
                          names=['Wavelength','Spectral Irradiance'])
-LED2_CONST = pd.read_csv('spectra/LED2.txt', skiprows=3, sep='\t',
+LED2_CONST = pd.read_csv(spectra / 'LED2.txt', skiprows=3, sep='\t',
                          names=['Wavelength','Spectral Irradiance'])
-print(LED2_CONST.head())
 
 def AM15G():
     return AM15G_CONST.copy()

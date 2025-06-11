@@ -2,6 +2,10 @@ import pandas as pd
 import scipy.interpolate
 import matplotlib.pyplot as plt
 import numpy as np
+import importlib.resources
+
+materials = importlib.resources.files('pysolarcell') / 'materials'
+
 
 class Material:
     def __init__(self, name, bandgap):
@@ -42,8 +46,8 @@ class Material:
 
 
 def PEROVSKITE():
-    n_data = pd.read_csv('materials/CsPbI3_PSK_n.txt', sep='\t', names=['Wavelength', 'n'])
-    k_data = pd.read_csv('materials/CsPbI3_PSK_k.txt', sep='\t', names=['Wavelength', 'k'])
+    n_data = pd.read_csv(materials / 'CsPbI3_PSK_n.txt', sep='\t', names=['Wavelength', 'n'])
+    k_data = pd.read_csv(materials / 'CsPbI3_PSK_k.txt', sep='\t', names=['Wavelength', 'k'])
 
     material = Material('Perovskite', 1.65)
     material.setN(n_data['Wavelength'] * 1e3, n_data['n'])
@@ -53,8 +57,8 @@ def PEROVSKITE():
 
 
 def SILICON():
-    n_data = pd.read_csv('materials/Si_n.txt', sep='\t', names=['Wavelength', 'n'])
-    k_data = pd.read_csv('materials/Si_k.txt', sep='\t', names=['Wavelength', 'k'])
+    n_data = pd.read_csv(materials / 'Si_n.txt', sep='\t', names=['Wavelength', 'n'])
+    k_data = pd.read_csv(materials / 'Si_n.txt', sep='\t', names=['Wavelength', 'k'])
 
     material = Material('Silicon', 1.12)
     material.setN(n_data['Wavelength'] * 1e3, n_data['n'])
