@@ -53,6 +53,10 @@ def PARALLEL(*cells):
 def SERIES(*cells):
     return [*cells, False]
 
+def set_n_points(n):
+    global n_points
+    n_points = n
+
 
 class Layer:
     def __init__(self, name, bandgap, iqe=1, thickness: float=0, k=None, area=100, Rs=0, Rsh=np.inf, T=298, n=1):
