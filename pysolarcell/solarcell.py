@@ -302,21 +302,34 @@ class Stack:
 
         return self.properties['FF']
 
+    def voc(self):
+        if 'Voc' not in self.properties.keys():
+            self.ff()
+
+        return self.properties['Voc']
+
+    def jsc(self):
+        if 'Jsc' not in self.properties.keys():
+            self.ff()
+
+        return self.properties['Jsc']
+
     def efficiency(self):
         return self.mpp()[1] / self.incident_power * 100
 
-    def solve(self):
+    def solve(self, verbose=True):
         self.jv()
         self.eqe()
         self.mpp()
         self.ff()
 
-        print('-' * 6 + self.name + '-' * 6)
-        print(f'Voc = {self.properties['Voc']:.2f} V')
-        print(f'Jsc = {self.properties['Jsc']:.2f} mA/cm^2')
-        print(f'Efficiency = {self.efficiency():.2f}%')
-        print(f'FF = {self.properties['FF']:.2f}%')
-        print('-' * (len(self.name) + 12))
+        if verbose:
+            print('-' * 6 + self.name + '-' * 6)
+            print(f'Voc = {self.properties['Voc']:.2f} V')
+            print(f'Jsc = {self.properties['Jsc']:.2f} mA/cm^2')
+            print(f'Efficiency = {self.efficiency():.2f}%')
+            print(f'FF = {self.properties['FF']:.2f}%')
+            print('-' * (len(self.name) + 12))
 
         return self.properties
 
