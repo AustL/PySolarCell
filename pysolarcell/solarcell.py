@@ -513,15 +513,18 @@ class SolarCell:
         return voltages, cell1.ItoJ(currents)
 
 
-def plot_iv(*layers):
+def plot_iv(*layers, figax=None):
     """Plots the JV curve for all layers in layers
 
     :param layers: The list of layers or stacks to plot
+    :param figax: Tuple of figure and axes (optionaL)
     :return: Figure and axes for further modification
     """
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
+    if figax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+    else:
+        fig, ax = figax
 
     for layer in layers:
         ax.plot(*layer.jv(), label=layer.name)
@@ -531,19 +534,22 @@ def plot_iv(*layers):
     ax.legend(loc='best')
     ax.set_xlabel('Voltage (V)')
     ax.set_ylabel('Current Density ($mA/cm^2$)')
-    fig.tight_layout()
 
     return fig, ax
 
 
-def plot_eqe(*layers):
+def plot_eqe(*layers, figax=None):
     """Plots the external quantum efficiency for all layers in layers
 
     :param layers: The list of layers or stacks to plot
+    :param figax: Tuple of figure and axes (optionaL)
     :return: Figure and axes for further modification
     """
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
+    if figax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+    else:
+        fig, ax = figax
 
     for layer in layers:
         ax.plot(*layer.eqe(), label=layer.name)
@@ -616,10 +622,12 @@ if __name__ == '__main__':
     # cell1.solve()
     # cell2.solve()
 
-    fig, ax = plot_iv(layer1, layer2, parallel, series)
+    fig, axs = plt.subplots(1, 2)
+
+    plot_iv(layer1, layer2, parallel, series, figax=(fig, axs[0]))
     # ax.set_xlim([0, 2])
     # plot_iv(cell1)
-    plt.show()
+    plot_iv(layer1, layer2, parallel, series, figax=(fig, axs[1]))
 
     plot_eqe(layer1, layer2, parallel)
     plt.show()
