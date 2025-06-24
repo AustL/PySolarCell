@@ -59,7 +59,7 @@ def set_n_points(n):
 
 
 class Layer:
-    def __init__(self, name, bandgap, iqe=1, thickness: float=0, k=None, area=100, Rs=0, Rsh=np.inf, T=298, n=1):
+    def __init__(self, name, bandgap, iqe=1, thickness: float=0, k=None, area=100, Rs=0, Rsh=np.inf, T=298, n=1, real_voc=np.inf):
         """Creates a new layer of a solar cell stack. This can be created from a thickness and absorption data or a bandgap.
 
         :param name: Name of the layer (str)
@@ -80,6 +80,7 @@ class Layer:
         self.Rsh = Rsh
         self.T = T
         self.n = n
+        self.real_voc = real_voc
 
         self.properties = {}
 
@@ -133,7 +134,10 @@ class Layer:
         Jsc = scipy.integrate.trapezoid(light_spectrum['Spectral Irradiance'] * spectral_response,
                                         light_spectrum['Wavelength']) / 10  # mA/cm^2
 
-        Voc = self.n * k * self.T / q * np.log(Jsc / J0 + 1)
+        if self.real_voc == np.inf:
+            Voc = self.n * k * self.T / q * np.log(Jsc / J0 + 1)
+        else:
+            Voc = self.real_voc
 
         solar_cell = SolarCell(Jsc, Voc, area=self.area, Rs=self.Rs, Rsh=self.Rsh, T=self.T, n=self.n)
 
@@ -534,6 +538,7 @@ def plot_iv(*layers, figax=None):
     ax.legend(loc='best')
     ax.set_xlabel('Voltage (V)')
     ax.set_ylabel('Current Density ($mA/cm^2$)')
+    fig.tight_layout()
 
     return fig, ax
 
@@ -609,27 +614,42 @@ if __name__ == '__main__':
     #
     # mixed4.solve()
 
-    layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=1, Rs=0, Rsh=np.inf)
-    layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.96, iqe=1, Rs=0, Rsh=np.inf)
+    # layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=1, Rs=0, Rsh=np.inf)
+    # layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.96, iqe=1, Rs=0, Rsh=np.inf)
+    #
+    # parallel = Stack(PARALLEL(layer1, layer2), name='Parallel')
+    # series = Stack(SERIES(layer1, layer2), name='Series')
+    # # cell1 = Stack(layer1, name='Cell 1')
+    # # cell2 = Stack(layer2, name='Cell 2')
+    #
+    # parallel.solve()
+    # series.solve()
+    # # cell1.solve()
+    # # cell2.solve()
+    #
+    # fig, axs = plt.subplots(1, 2)
+    #
+    # fig, ax = plot_iv(layer1, layer2, parallel, series, figax=(fig, axs[0]))
+    # # ax.set_xlim([0, 2])
+    # # plot_iv(cell1)
+    # plot_iv(layer1, layer2, parallel, series, figax=(fig, axs[1]))
+    #
+    # plot_eqe(layer1, layer2, parallel)
+    # plt.show()
 
-    parallel = Stack(PARALLEL(layer1, layer2), name='Parallel')
-    series = Stack(SERIES(layer1, layer2), name='Series')
-    # cell1 = Stack(layer1, name='Cell 1')
-    # cell2 = Stack(layer2, name='Cell 2')
+    bandgaps = np.linspace(1.4, 2.2, 9)
+    vocs = np.zeros_like(bandgaps)
+    real_vocs = [0.85, 1.17, 1.22, 1.27, 1.37, 1.44, 1.38, 1.41, 1.64]
 
-    parallel.solve()
-    series.solve()
-    # cell1.solve()
-    # cell2.solve()
+    for i, bandgap in enumerate(bandgaps):
+        layer = Layer('Test', bandgap, real_voc=real_vocs[i])
+        stack = Stack(layer, name=f'{bandgap:.1f} eV')
+        stack.solve(verbose=True)
+        # vocs[i] = stack.voc()
+        # plot_iv(stack)
+        # plt.show()
 
-    fig, axs = plt.subplots(1, 2)
-
-    plot_iv(layer1, layer2, parallel, series, figax=(fig, axs[0]))
-    # ax.set_xlim([0, 2])
-    # plot_iv(cell1)
-    plot_iv(layer1, layer2, parallel, series, figax=(fig, axs[1]))
-
-    plot_eqe(layer1, layer2, parallel)
-    plt.show()
+    plt.plot(bandgaps, vocs)
+    plt.plot(bandgaps, real_vocs)
 
 # TODO: Reflectance, recombination, diffusion length
