@@ -15,7 +15,7 @@ k = 1.380649e-23  # J/K
 q = 1.60217e-19  # C
 sigma = 5.670374419e-8  # W/m^2/K^4
 pi = np.pi
-n_points = 100  # Change to 1000 for straight lines
+n_points = 1000  # Change to 1000 for straight lines
 
 np.seterr(all='raise')
 
@@ -59,7 +59,7 @@ def set_n_points(n):
 
 
 class Layer:
-    def __init__(self, name, bandgap, iqe=1, thickness: float=0, k=None, area=100, Rs=0, Rsh=np.inf, T=298, n=1, real_voc=np.inf):
+    def __init__(self, name, bandgap, iqe=1, thickness: float=0, k=None, area=100, Rs=0, Rsh=np.inf, T=298, n=1, real_voc=np.inf, real_jsc=np.inf):
         """Creates a new layer of a solar cell stack. This can be created from a thickness and absorption data or a bandgap.
 
         :param name: Name of the layer (str)
@@ -81,6 +81,7 @@ class Layer:
         self.T = T
         self.n = n
         self.real_voc = real_voc
+        self.real_jsc = real_jsc
 
         self.properties = {}
 
@@ -116,10 +117,6 @@ class Layer:
         Eg = self.bandgap * q  # Energy in J
         u = Eg / (k * self.T)
 
-        # Diode saturation current (mA/cm^2)
-        J0 = ((15 * q * sigma * self.T ** 3) / (k * pi ** 4)
-              * scipy.integrate.quad(lambda x: x ** 2 / (np.exp(x) - 1), u, 500)[0] / 10)
-
         if self.type == 'bandgap':
             lambda_g = h * c / Eg * 1e9  # Bandgap wavelength in nm
             EQE = np.zeros_like(light_spectrum['Wavelength'], dtype=np.float64)
@@ -135,9 +132,13 @@ class Layer:
                                         light_spectrum['Wavelength']) / 10  # mA/cm^2
 
         if self.real_voc == np.inf:
-            Voc = self.n * k * self.T / q * np.log(Jsc / J0 + 1)
+            # Diode saturation current (mA/cm^2)
+            J0 = ((15 * q * sigma * self.T ** 3) / (k * pi ** 4)
+                  * scipy.integrate.quad(lambda x: x ** 2 / (np.exp(x) - 1), u, 500)[0] / 10)
         else:
-            Voc = self.real_voc
+            J0 = self.real_jsc / (np.exp(q * self.real_voc / (self.n * self.k * self.T)) - 1)
+
+        Voc = self.n * k * self.T / q * np.log(Jsc / J0 + 1)
 
         solar_cell = SolarCell(Jsc, Voc, area=self.area, Rs=self.Rs, Rsh=self.Rsh, T=self.T, n=self.n)
 
@@ -642,14 +643,16 @@ if __name__ == '__main__':
     real_vocs = [0.85, 1.17, 1.22, 1.27, 1.37, 1.44, 1.38, 1.41, 1.64]
 
     for i, bandgap in enumerate(bandgaps):
-        layer = Layer('Test', bandgap, real_voc=real_vocs[i])
+        layer = Layer('Test', bandgap)
         stack = Stack(layer, name=f'{bandgap:.1f} eV')
-        stack.solve(verbose=True)
-        # vocs[i] = stack.voc()
+        stack.solve(verbose=False)
+        vocs[i] = stack.voc()
+
         # plot_iv(stack)
         # plt.show()
 
     plt.plot(bandgaps, vocs)
     plt.plot(bandgaps, real_vocs)
+    plt.show()
 
 # TODO: Reflectance, recombination, diffusion length
