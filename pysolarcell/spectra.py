@@ -3,6 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import pySMARTS
 import os
+import scipy.integrate
+
+from pandas.errors import EmptyDataError
 
 spectra = importlib.resources.files('pysolarcell') / 'spectra'
 
@@ -64,6 +67,9 @@ class Lamp:
     def copy(self):
         return Lamp(self.spectrum.copy(), wavelength_name=self.wavelength_name, irradiance_name=self.irradiance_name)
 
+    def head(self, *args, **kwargs):
+        return self.spectrum.head(*args, **kwargs)
+
     def modify_clarity(self, clarity):
         assert self.direct_name in self.spectrum.columns, 'Direct irradiances are required for clarity modification.'
 
@@ -72,6 +78,13 @@ class Lamp:
         spectrum[self.irradiance_name] = self.spectrum[self.irradiance_name] - self.spectrum[self.direct_name] * (1 - clarity)
 
         return Lamp(spectrum, self.wavelength_name, self.irradiance_name)
+
+    def total_power(self):
+        """ Calculates the total power in mW/cm^2
+
+        :return: Total power in mW/cm^2
+        """
+        return scipy.integrate.trapezoid(self.irradiances(), self.wavelengths()) / 10
 
     @staticmethod
     def from_csv(filename, wavelength_name='Wavelength', irradiance_name='Spectral Irradiance', direct_name='AM1.5D', **kwargs):
@@ -109,6 +122,9 @@ class Lamp:
 
         assert 'SMARTSPATH' in os.environ, 'Please add the SMARTS2 software to the SMARTSPATH environment variable.'
 
-        spectrum = pySMARTS.SMARTSTimeLocation(IOUT, YEAR, MONTH, DAY, HOUR, LATIT, LONGIT, ALTIT, ZONE)
+        try:
+            spectrum = pySMARTS.SMARTSTimeLocation(IOUT, YEAR, MONTH, DAY, HOUR, LATIT, LONGIT, ALTIT, ZONE)
+        except EmptyDataError:
+            return None
 
         return Lamp(spectrum, 'Wvlgth', 'Global_horizn_irradiance', 'Direct_horizn_irradiance')

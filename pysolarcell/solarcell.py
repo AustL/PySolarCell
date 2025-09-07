@@ -120,7 +120,7 @@ class Layer:
         self.properties['FF'] = solar_cell.ff()
         self.properties['MPP'] = solar_cell.mpp()
         self.properties['EQE'] = (light_spectrum.wavelengths(), light_spectrum.irradiances() * EQE)
-        self.properties['Incident Power'] = scipy.integrate.trapezoid(light_spectrum.irradiances(), light_spectrum.wavelengths()) / 10
+        self.properties['Incident Power'] = light_spectrum.total_power()
 
         # Calculate light after the cell
         light_spectrum.update(EQE)
@@ -172,7 +172,7 @@ class Layer:
 
         return self.properties['MPP'][1] / self.properties['Incident Power'] * 100
 
-    def maxPower(self):
+    def max_power(self):
         """Returns the maximum power in mW/cm^2
 
         :return: Maximum power in mW/cm^2
