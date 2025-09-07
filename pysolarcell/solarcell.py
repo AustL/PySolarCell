@@ -1,11 +1,10 @@
 import sympy as sp
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.integrate
 import scipy.interpolate
-import importlib.resources
 
+from pysolarcell.spectra import Lamp, AM0, AM15G, AM15D, LED1, LED2
 from pysolarcell.materials import Material, PEROVSKITE, SILICON
 
 # Constants
@@ -18,34 +17,6 @@ pi = np.pi
 n_points = 1000  # Change to 1000 for straight lines
 
 np.seterr(all='raise')
-
-spectra = importlib.resources.files('pysolarcell') / 'spectra'
-
-AM15G_CONST = pd.read_csv(spectra / 'AM1.5G.txt', skiprows=1, sep='\t',
-                          names=['Wavelength', 'AM0', 'Spectral Irradiance', 'AM1.5D'])
-AM15D_CONST = pd.read_csv(spectra / 'AM1.5G.txt', skiprows=1, sep='\t',
-                          names=['Wavelength', 'AM0', 'AM1.5G', 'Spectral Irradiance'])
-AM0_CONST = pd.read_csv(spectra / 'AM1.5G.txt', skiprows=1, sep='\t',
-                        names=['Wavelength','Spectral Irradiance','AM1.5G', 'AM1.5D'])
-LED1_CONST = pd.read_csv(spectra / 'LED1.txt', skiprows=2, sep='\t',
-                         names=['Wavelength','Spectral Irradiance'])
-LED2_CONST = pd.read_csv(spectra / 'LED2.txt', skiprows=3, sep='\t',
-                         names=['Wavelength','Spectral Irradiance'])
-
-def AM15G():
-    return AM15G_CONST.copy()
-
-def AM15D():
-    return AM15D_CONST.copy()
-
-def AM0():
-    return AM0_CONST.copy()
-
-def LED1():
-    return LED1_CONST.copy()
-
-def LED2():
-    return LED2_CONST.copy()
 
 def PARALLEL(*cells):
     return [*cells, True]
@@ -96,7 +67,7 @@ class Layer:
         return f'Layer({self.name})'
 
     @staticmethod
-    def fromMaterial(name, material: Material, thickness: float, *args):
+    def from_material(name, material: Material, thickness: float, *args):
         """Create a layer from a given material of some thickness
 
         :param name: Name of the layer
@@ -108,7 +79,7 @@ class Layer:
 
         return Layer(name, material.bandgap, thickness, material.k, *args)
 
-    def toSolarCell(self, light_spectrum):
+    def to_solar_cell(self, light_spectrum: Lamp):
         """Converts the layer to a solar cell using a light spectrum
 
         :param light_spectrum: The incident spectrum
@@ -119,24 +90,25 @@ class Layer:
 
         if self.type == 'bandgap':
             lambda_g = h * c / Eg * 1e9  # Bandgap wavelength in nm
-            EQE = np.zeros_like(light_spectrum['Wavelength'], dtype=np.float64)
-            EQE[light_spectrum['Wavelength'] < lambda_g] = self.iqe
+            assert min(light_spectrum.wavelengths()) < lambda_g < max(light_spectrum.wavelengths()), 'This bandgap lies outside the spectrum range!'
+            EQE = np.zeros_like(light_spectrum.wavelengths(), dtype=np.float64)
+            EQE[light_spectrum.wavelengths() < lambda_g] = self.iqe
 
         if self.type == 'absorption':
             # I/I0 = exp(-4 pi k x / lambda) with x in nm and lambda in nm
-            EQE = (1 - np.exp(-4 * pi * self.k(light_spectrum['Wavelength']) * self.thickness / light_spectrum['Wavelength'])) * self.iqe
+            EQE = (1 - np.exp(-4 * pi * self.k(light_spectrum.wavelengths()) * self.thickness / light_spectrum.wavelengths())) * self.iqe
 
-        spectral_response = q * light_spectrum['Wavelength'] / (h * c) * EQE * 1e-9
+        spectral_response = q * light_spectrum.wavelengths() / (h * c) * EQE * 1e-9
 
-        Jsc = scipy.integrate.trapezoid(light_spectrum['Spectral Irradiance'] * spectral_response,
-                                        light_spectrum['Wavelength']) / 10  # mA/cm^2
+        Jsc = scipy.integrate.trapezoid(light_spectrum.irradiances() * spectral_response,
+                                        light_spectrum.wavelengths()) / 10  # mA/cm^2
 
         if self.real_voc == np.inf:
             # Diode saturation current (mA/cm^2)
             J0 = ((15 * q * sigma * self.T ** 3) / (k * pi ** 4)
                   * scipy.integrate.quad(lambda x: x ** 2 / (np.exp(x) - 1), u, 500)[0] / 10)
         else:
-            J0 = self.real_jsc / (np.exp(q * self.real_voc / (self.n * self.k * self.T)) - 1)
+            J0 = self.real_jsc / (np.exp(q * self.real_voc / (self.n * k * self.T)) - 1)
 
         Voc = self.n * k * self.T / q * np.log(Jsc / J0 + 1)
 
@@ -147,11 +119,11 @@ class Layer:
         self.properties['JV'] = solar_cell.jv()
         self.properties['FF'] = solar_cell.ff()
         self.properties['MPP'] = solar_cell.mpp()
-        self.properties['EQE'] = (light_spectrum['Wavelength'], light_spectrum['Spectral Irradiance'] * EQE)
-        self.properties['Incident Power'] = scipy.integrate.trapezoid(light_spectrum['Spectral Irradiance'], light_spectrum['Wavelength']) / 10
+        self.properties['EQE'] = (light_spectrum.wavelengths(), light_spectrum.irradiances() * EQE)
+        self.properties['Incident Power'] = scipy.integrate.trapezoid(light_spectrum.irradiances(), light_spectrum.wavelengths()) / 10
 
         # Calculate light after the cell
-        light_spectrum['Spectral Irradiance'] = light_spectrum['Spectral Irradiance'] * (1 - EQE)
+        light_spectrum.update(EQE)
 
         return solar_cell
 
@@ -165,7 +137,7 @@ class Layer:
             print('Warning: You must convert this layer to a solar cell first.')
 
         EQE = self.properties['EQE']
-        return EQE[0], EQE[1] / AM15G()['Spectral Irradiance'] * 100
+        return EQE[0], EQE[1] / AM15G().irradiances() * 100
 
     def jv(self):
         """Returns the JV curve of the cell as a tuple (voltages, currents)
@@ -200,9 +172,16 @@ class Layer:
 
         return self.properties['MPP'][1] / self.properties['Incident Power'] * 100
 
+    def maxPower(self):
+        """Returns the maximum power in mW/cm^2
+
+        :return: Maximum power in mW/cm^2
+        """
+        return self.mpp()[1]
+
 
 class Stack:
-    def __init__(self, layers, lamp=None, name=''):
+    def __init__(self, layers, lamp: Lamp=None, name=''):
         """Creates a stack of cells. Usage SERIES(layer1, PARALLEL(layer2, layer3))
 
         :param layers: List of layers
@@ -218,7 +197,7 @@ class Stack:
         if self.lamp is None:
             self.lamp = AM15G()
 
-        self.incident_power = scipy.integrate.trapezoid(self.lamp['Spectral Irradiance'], self.lamp['Wavelength']) / 10
+        self.incident_power = scipy.integrate.trapezoid(self.lamp.irradiances(), self.lamp.wavelengths() / 10)
 
         self.jv_curve = None
         self.properties = {}
@@ -228,7 +207,7 @@ class Stack:
             self.flattened_layers.append(layers)
 
             # Convert layer to IV curve
-            cell = layers.toSolarCell(self.lamp)
+            cell = layers.to_solar_cell(self.lamp)
 
             # if parallel:
             #     return cell.jv()
@@ -569,25 +548,33 @@ def plot_eqe(*layers, figax=None):
     return fig, ax
 
 if __name__ == '__main__':
-    # layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=1, Rs=0, Rsh=np.inf)
-    # layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=1, Rs=0, Rsh=np.inf)
-    # # layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=1)
-    # # layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=1)
-    #
-    # parallel = Stack(PARALLEL(layer1, layer2), name='Parallel')
-    # series = Stack(SERIES(layer1, layer2), name='Series')
-    # # cell1 = Stack(layer1, name='Cell 1')
-    # # cell2 = Stack(layer2, name='Cell 2')
-    #
-    # # parallel.solve()
-    # series.solve()
-    # # cell1.solve()
-    # # cell2.solve()
-    #
-    # fig, ax = plot_iv(layer1, layer2, parallel, series)
-    # # ax.set_xlim([0, 2])
-    # # plot_iv(cell1)
-    # plt.show()
+    import pandas as pd
+    layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=1, Rs=0, Rsh=np.inf)
+    layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=1, Rs=0, Rsh=np.inf)
+    # layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=1)
+    # layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=1)
+
+    lamp = AM15G()
+    fig, ax = lamp.plot()
+    lamp2 = lamp.modify_clarity(0.5)
+    lamp2.plot(figax=(fig, ax))
+    lamp3 = Lamp.from_smarts(2025, 6, 21, 12, 51.5, 0, 0, 0)
+    lamp3.plot(figax=(fig, ax))
+    parallel = Stack(PARALLEL(layer1, layer2), name='Parallel', lamp=AM15G())
+    series = Stack(SERIES(layer1, layer2), name='Series')
+
+    # cell1 = Stack(layer1, name='Cell 1')
+    # cell2 = Stack(layer2, name='Cell 2')
+
+    # parallel.solve()
+    series.solve()
+    # cell1.solve()
+    # cell2.solve()
+
+    fig, ax = plot_iv(layer1, layer2, parallel, series)
+    # ax.set_xlim([0, 2])
+    # plot_iv(cell1)
+    plt.show()
     #
     # plot_eqe(layer1, layer2, parallel)
     # plt.show()
@@ -638,21 +625,7 @@ if __name__ == '__main__':
     # plot_eqe(layer1, layer2, parallel)
     # plt.show()
 
-    bandgaps = np.linspace(1.4, 2.2, 9)
-    vocs = np.zeros_like(bandgaps)
-    real_vocs = [0.85, 1.17, 1.22, 1.27, 1.37, 1.44, 1.38, 1.41, 1.64]
+    #
 
-    for i, bandgap in enumerate(bandgaps):
-        layer = Layer('Test', bandgap)
-        stack = Stack(layer, name=f'{bandgap:.1f} eV')
-        stack.solve(verbose=False)
-        vocs[i] = stack.voc()
-
-        # plot_iv(stack)
-        # plt.show()
-
-    plt.plot(bandgaps, vocs)
-    plt.plot(bandgaps, real_vocs)
-    plt.show()
 
 # TODO: Reflectance, recombination, diffusion length
