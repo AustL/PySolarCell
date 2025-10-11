@@ -11,7 +11,7 @@ from pysolarcell.materials import Material, PEROVSKITE, SILICON
 h = 6.62607015e-34  # Js
 c = 299792458  # m/s
 k = 1.380649e-23  # J/K
-q = 1.60217e-19  # C
+q = 1.602176634e-19  # C
 sigma = 5.670374419e-8  # W/m^2/K^4
 pi = np.pi
 n_points = 1000  # Change to 1000 for straight lines
@@ -30,7 +30,7 @@ def set_n_points(n):
 
 
 class Layer:
-    def __init__(self, name, bandgap, iqe=1, thickness: float=0, k=None, area=100, Rs=0, Rsh=np.inf, T=298, n=1, real_voc=np.inf, real_jsc=np.inf):
+    def __init__(self, name, bandgap, iqe=1, thickness: float=0, k=None, area=100, Rs=0, Rsh=np.inf, T=298, n=1, real_voc=np.inf, real_jsc=np.inf, fg=2):
         """Creates a new layer of a solar cell stack. This can be created from a thickness and absorption data or a bandgap.
 
         :param name: Name of the layer (str)
@@ -53,6 +53,7 @@ class Layer:
         self.n = n
         self.real_voc = real_voc
         self.real_jsc = real_jsc
+        self.fg = fg  # Emission area fraction (fg = 2 allows radiative emission from both side)
 
         self.properties = {}
 
@@ -105,8 +106,10 @@ class Layer:
 
         if self.real_voc == np.inf:
             # Diode saturation current (mA/cm^2)
-            J0 = ((15 * q * sigma * self.T ** 3) / (k * pi ** 4)
-                  * scipy.integrate.quad(lambda x: x ** 2 / (np.exp(x) - 1), u, 500)[0] / 10)
+            # J0 = ((15 * q * sigma * self.T ** 3) / (k * pi ** 4)
+            #       * scipy.integrate.quad(lambda x: x ** 2 / (np.exp(x) - 1), u, 500)[0] / 10)
+            integral = lambda x: (x ** 2 + 2 * x + 2) / np.exp(x)  # Approximation for above integral
+            J0 = self.fg * (15 * q * sigma * self.T ** 3) / (k * pi ** 4) * integral(u) / 10
         else:
             J0 = self.real_jsc / (np.exp(q * self.real_voc / (self.n * k * self.T)) - 1)
 
@@ -549,46 +552,56 @@ def plot_eqe(*layers, figax=None):
 
 if __name__ == '__main__':
     import pandas as pd
-    layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=1, Rs=0, Rsh=np.inf)
-    layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=1, Rs=0, Rsh=np.inf)
+    # layer1 = Layer('Cell 1 (1.71 eV)', bandgap=1.71, iqe=1, Rs=0, Rsh=np.inf)
+    # layer2 = Layer('Cell 2 (1.10 eV)', bandgap=1.1, iqe=1, Rs=0, Rsh=np.inf)
     # layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=1)
     # layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=1)
 
-    lamp = AM15G()
-    fig, ax = lamp.plot()
-    lamp2 = lamp.modify_clarity(0.5)
-    lamp2.plot(figax=(fig, ax))
-    lamp3 = Lamp.from_smarts(2025, 6, 21, 12, 51.5, 0, 0, 0)
-    lamp3.plot(figax=(fig, ax))
-    parallel = Stack(PARALLEL(layer1, layer2), name='Parallel', lamp=AM15G())
-    series = Stack(SERIES(layer1, layer2), name='Series')
+    # lamp = AM15G()
+    # fig, ax = lamp.plot()
+    # lamp2 = lamp.modify_clarity(0.5)
+    # lamp2.plot(figax=(fig, ax))
+    # lamp3 = Lamp.from_smarts(2025, 6, 21, 12, 51.5, 0, 0, 0)
+    # lamp3.plot(figax=(fig, ax))
+    # parallel = Stack(PARALLEL(layer1, layer2), name='Parallel', lamp=AM15G())
+    # series = Stack(SERIES(layer1, layer2), name='Series')
 
     # cell1 = Stack(layer1, name='Cell 1')
     # cell2 = Stack(layer2, name='Cell 2')
 
     # parallel.solve()
-    series.solve()
+    # series.solve()
+    # print(layer1.properties['Voc'])
+    # print(series.properties)
     # cell1.solve()
     # cell2.solve()
 
-    fig, ax = plot_iv(layer1, layer2, parallel, series)
+    # fig, ax = plot_iv(layer1, layer2, series)
     # ax.set_xlim([0, 2])
     # plot_iv(cell1)
-    plt.show()
+    # plt.show()
     #
     # plot_eqe(layer1, layer2, parallel)
     # plt.show()
 
-    # bandgaps = np.linspace(0.77, 3, 40)
+    # layer = Layer('Cell', 1.34)
+    # cell = Stack(layer, name='Single Junction')
+    # cell.solve()
+    #
+    # bandgaps = np.linspace(0.77, 3, 500)
     # powers = np.zeros_like(bandgaps)
     # for i, bandgap in enumerate(bandgaps):
     #     layer = Layer('Cell', bandgap=bandgap, iqe=1, Rs=0, Rsh=np.inf)
-    #     cell = Stack(layer, 'Stack')
+    #     cell = Stack(layer, name='Stack')
     #
     #     powers[i] = cell.efficiency()
-
-    # plt.plot(bandgaps, powers)
     #
+    # plt.plot(bandgaps, powers)
+    # plt.show()
+    #
+    # print(max(powers))
+    # print(bandgaps[np.argmax(powers)])
+
     # cell1 = Layer('Cell 1', 1.4605263157894737, iqe=1)
     # cell2 = Layer('Cell 2',1.3578947368421053, iqe=1)
     # cell3 = Layer('Cell 3', 1.2552631578947369, iqe=1)
