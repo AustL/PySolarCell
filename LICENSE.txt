@@ -12,4 +12,4 @@ received a copy it along with PySolarCell. If not, see http://www.gnu.org/licens
 If you find this software useful and help you produce any scientific
 publication, please cite this repository at:
 
-Lin, A. (2026). AustL/PySolarCell: v1.3.1 (v1.3.1). Zenodo. https://doi.org/10.5281/zenodo.18603671
+Lin, A. (2026). AustL/PySolarCell: v1.3.1 (v1.3.1). Zenodo. https://doi.org/10.5281/zenodo.18603670
