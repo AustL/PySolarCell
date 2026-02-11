@@ -9,7 +9,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details. You should have
 received a copy it along with PySolarCell. If not, see http://www.gnu.org/licenses/.
 
-If you find this software useful and help you produce any scientific
+If you find this software useful in helping you produce any scientific
 publication, please cite this repository at:
 
 Lin, A. (2026). AustL/PySolarCell: v1.3.1 (v1.3.1). Zenodo. https://doi.org/10.5281/zenodo.18603671
