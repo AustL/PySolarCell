@@ -1,6 +1,6 @@
-# PySolarCell
+[![DOI](https://zenodo.org/badge/999887226.svg)](https://doi.org/10.5281/zenodo.18603670) ![](https://img.shields.io/pypi/dm/pysolarcell)
 
-![](https://img.shields.io/pypi/dm/pysolarcell)
+# PySolarCell
 
 A detailed balance solar cell solver for multijunction tandem solar cells. It supports IV and EQE calculation, and different connection types between layers e.g. series, parallel and mixed.
 
