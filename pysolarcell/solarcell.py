@@ -106,10 +106,10 @@ class Layer:
 
         if self.real_voc == np.inf:
             # Diode saturation current (mA/cm^2)
-            # J0 = ((15 * q * sigma * self.T ** 3) / (k * pi ** 4)
-            #       * scipy.integrate.quad(lambda x: x ** 2 / (np.exp(x) - 1), u, 500)[0] / 10)
-            integral = lambda x: (x ** 2 + 2 * x + 2) / np.exp(x)  # Approximation for above integral
-            J0 = self.fg * (15 * q * sigma * self.T ** 3) / (k * pi ** 4) * integral(u) / 10
+            J0 = ((15 * q * sigma * self.T ** 3) / (k * pi ** 4)
+                  * scipy.integrate.quad(lambda x: x ** 2 / (np.exp(x) - 1), u, 600)[0] / 10)
+            # integral = lambda x: (x ** 2 + 2 * x + 2) / np.exp(x)  # Approximation for above integral
+            # J0 = self.fg * (15 * q * sigma * self.T ** 3) / (k * pi ** 4) * integral(u) / 10
         else:
             J0 = self.real_jsc / (np.exp(q * self.real_voc / (self.n * k * self.T)) - 1)
 
@@ -401,8 +401,8 @@ class SolarCell:
         for index, v in enumerate(self.voltages):
             guess = self.Isc - self.I0 * (sp.exp(q * v / (self.n * k * self.T)) - 1)
             result[index] = sp.nsolve(self.Isc
-                                          - self.I0 * (sp.exp((v + I * self.Rs) / (self.n * k * self.T / q)) - 1)
-                                          - (v + I * self.Rs) / self.Rsh - I, guess)
+                                      - self.I0 * (sp.exp((v + I * self.Rs) / (self.n * k * self.T / q)) - 1)
+                                      - (v + I * self.Rs) / self.Rsh - I, guess)
 
         self.I = scipy.interpolate.interp1d(self.voltages, result, fill_value='extrapolate')
 
@@ -500,7 +500,7 @@ class SolarCell:
         return voltages, cell1.ItoJ(currents)
 
 
-def plot_iv(*layers, figax=None):
+def plot_iv(*layers, figax=None, linestyle='-'):
     """Plots the JV curve for all layers in layers
 
     :param layers: The list of layers or stacks to plot
@@ -514,7 +514,7 @@ def plot_iv(*layers, figax=None):
         fig, ax = figax
 
     for layer in layers:
-        ax.plot(*layer.jv(), label=layer.name)
+        ax.plot(*layer.jv(), label=layer.name, linestyle=linestyle)
 
     ax.set_xlim(left=0)
     ax.set_ylim(bottom=0)
@@ -546,11 +546,11 @@ def plot_eqe(*layers, figax=None):
     ax.legend()
     ax.set_xlabel('Wavelength (nm)')
     ax.set_ylabel('EQE (%)')
-    fig.tight_layout()
 
     return fig, ax
 
 if __name__ == '__main__':
+    plt.close('all')
     import pandas as pd
     # layer1 = Layer('Cell 1 (1.71 eV)', bandgap=1.71, iqe=1, Rs=0, Rsh=np.inf)
     # layer2 = Layer('Cell 2 (1.10 eV)', bandgap=1.1, iqe=1, Rs=0, Rsh=np.inf)
@@ -584,9 +584,50 @@ if __name__ == '__main__':
     # plot_eqe(layer1, layer2, parallel)
     # plt.show()
 
-    # layer = Layer('Cell', 1.34)
-    # cell = Stack(layer, name='Single Junction')
+    def ff(voc):
+        print(voc)
+        voc = q / (k * 298) * voc
+        print((voc - np.log(voc + 0.72))/(voc + 1))
+
+    layer1s = Layer('Cell 1 Series', 2.00)
+    layer1m = Layer('Cell 1 Mixed', 2.34)
+    layer2s = Layer('Cell 2 Series', 1.49)
+    layer2m = Layer('Cell 2 Mixed', 1.58)
+    layer3 = Layer('Cell 3', 1.1)
+
+    lamp = AM15G()
+    series = Stack(SERIES(SERIES(layer1s, layer2s), layer3), name='Series', lamp=lamp.copy())
+    mixed = Stack(PARALLEL(layer1m, SERIES(layer2m, layer3)), name='Mixed', lamp=lamp.copy())
+    series.solve()
+    mixed.solve()
+    fig, ax = plot_iv(mixed, layer1m, layer2m, layer3)
+
+    ff(series.voc())
+
+    # lamp.spectrum[lamp.irradiance_name] = lamp.spectrum[lamp.irradiance_name] * 0.1
+    lamp = lamp.modify_clarity(0)
+    series = Stack(SERIES(SERIES(layer1s, layer2s), layer3), name='Series', lamp=lamp.copy())
+    mixed = Stack(PARALLEL(layer1m, SERIES(layer2m, layer3)), name='Mixed', lamp=lamp.copy())
+    series.solve()
+    mixed.solve()
+    plot_iv(mixed, layer1m, layer2m, layer3, figax=(fig, ax), linestyle='--')
+    plt.show()
+
+    ff(series.voc())
+
+    # layer = Layer('Cell', 1.1-0.273e-3 * 0, T=273+25)
+    # cell = Stack(layer, name='Single Junction', lamp=AM15G())
     # cell.solve()
+    # print(cell.mpp())
+    # plot_iv(cell)
+    # plt.show()
+    #
+    # layer = Layer('Cell', 1.1-0.273e-3 * 40, T=273+65)
+    # cell = Stack(layer, name='Single Junction', lamp=AM15G())
+    # cell.solve()
+    # print(cell.mpp())
+    # plot_iv(cell)
+    # plt.show()
     #
     # bandgaps = np.linspace(0.77, 3, 500)
     # powers = np.zeros_like(bandgaps)

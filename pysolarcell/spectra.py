@@ -79,6 +79,14 @@ class Lamp:
 
         return Lamp(spectrum, self.wavelength_name, self.irradiance_name)
 
+    def scale_intensity(self, scale):
+        # Scales the intensity of the spectrum by the given scale
+        spectrum = pd.DataFrame()
+        spectrum[self.wavelength_name] = self.spectrum[self.wavelength_name]
+        spectrum[self.irradiance_name] = self.spectrum[self.irradiance_name] * scale
+
+        return Lamp(self.spectrum, self.wavelength_name, self.irradiance_name)
+
     def total_power(self):
         """ Calculates the total power in mW/cm^2
 
