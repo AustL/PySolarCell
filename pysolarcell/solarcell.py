@@ -30,15 +30,22 @@ def set_n_points(n):
 
 
 class Layer:
-    def __init__(self, name, bandgap, iqe=1, thickness: float=0, k=None, area=100, Rs=0, Rsh=np.inf, T=298, n=1, real_voc=np.inf, real_jsc=np.inf, fg=2):
+    def __init__(self, name, bandgap, iqe=1, thickness: float=0, k=None, area=100, Rs=0, Rsh=np.inf, T=298, n=1, real_voc=np.inf, real_jsc=np.inf, fg=2, delta_lambda=None):
         """Creates a new layer of a solar cell stack. This can be created from a thickness and absorption data or a bandgap.
 
         :param name: Name of the layer (str)
         :param bandgap: Bandgap of the material (float)
-        :param iqe: Internal quantum efficiency (float)
+        :param iqe: Internal quantum efficiency (float) or maximum quantum efficiency
         :param thickness: Thickness of the layer (nm)
         :param k: Extinction coefficient (unitless) as a function of wavelength (nm)
         :param bandgap: Bandgap energy (eV)
+        :param Rs: Series resistance (Ohm cm^2)
+        :param Rsh: Shunt resistance (Ohm cm^2)
+        :param T: Temperature (K)
+        :param real_voc: Real open-circuit voltage (V)
+        :param real_jsc: Real short-circuit current (mA/cm^2)
+        :param fg: Geometric factor describing area of emission, fg = 2 for two-side emission
+        :param delta_lambda: Decay width for the sigmoidal EQE fit (nm)
         """
 
         self.name = name
@@ -54,6 +61,7 @@ class Layer:
         self.real_voc = real_voc
         self.real_jsc = real_jsc
         self.fg = fg  # Emission area fraction (fg = 2 allows radiative emission from both side)
+        self.delta_lambda = delta_lambda
 
         self.properties = {}
 
@@ -61,6 +69,8 @@ class Layer:
 
         if self.thickness != 0 and self.k is not None:
             self.type = 'absorption'
+        elif self.delta_lambda is not None:
+            self.type = 'sigmoid'
         else:
             self.type = 'bandgap'
 
@@ -86,6 +96,8 @@ class Layer:
         :param light_spectrum: The incident spectrum
         :return: The solar cell from the layer AND changes the spectrum in-place
         """
+        self.properties['Incident Spectrum'] = lamp.copy()
+
         Eg = self.bandgap * q  # Energy in J
         u = Eg / (k * self.T)
 
@@ -98,6 +110,11 @@ class Layer:
         if self.type == 'absorption':
             # I/I0 = exp(-4 pi k x / lambda) with x in nm and lambda in nm
             EQE = (1 - np.exp(-4 * pi * self.k(light_spectrum.wavelengths()) * self.thickness / light_spectrum.wavelengths())) * self.iqe
+
+        if self.type == 'sigmoid':
+            lambda_g = h * c / Eg * 1e9  # Bandgap wavelength in nm
+            assert min(light_spectrum.wavelengths()) < lambda_g < max(light_spectrum.wavelengths()), 'This bandgap lies outside the spectrum range!'
+            EQE = self.iqe / (1 + np.exp((light_spectrum.wavelengths() - lambda_g) / self.delta_lambda))  # sigmoid curve
 
         spectral_response = q * light_spectrum.wavelengths() / (h * c) * EQE * 1e-9
 
@@ -126,7 +143,7 @@ class Layer:
         self.properties['Incident Power'] = light_spectrum.total_power()
 
         # Calculate light after the cell
-        light_spectrum.update(EQE)
+        light_spectrum.update(EQE/self.iqe)  # Reflected light is ignored later
 
         return solar_cell
 
@@ -140,7 +157,7 @@ class Layer:
             print('Warning: You must convert this layer to a solar cell first.')
 
         EQE = self.properties['EQE']
-        return EQE[0], EQE[1] / AM15G().irradiances() * 100
+        return EQE[0], EQE[1] / self.properties['Incident Spectrum'].irradiances() * 100
 
     def jv(self):
         """Returns the JV curve of the cell as a tuple (voltages, currents)
@@ -552,68 +569,68 @@ def plot_eqe(*layers, figax=None):
 if __name__ == '__main__':
     plt.close('all')
     import pandas as pd
-    # layer1 = Layer('Cell 1 (1.71 eV)', bandgap=1.71, iqe=1, Rs=0, Rsh=np.inf)
-    # layer2 = Layer('Cell 2 (1.10 eV)', bandgap=1.1, iqe=1, Rs=0, Rsh=np.inf)
-    # layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=1)
-    # layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=1)
-
-    # lamp = AM15G()
-    # fig, ax = lamp.plot()
-    # lamp2 = lamp.modify_clarity(0.5)
-    # lamp2.plot(figax=(fig, ax))
-    # lamp3 = Lamp.from_smarts(2025, 6, 21, 12, 51.5, 0, 0, 0)
-    # lamp3.plot(figax=(fig, ax))
-    # parallel = Stack(PARALLEL(layer1, layer2), name='Parallel', lamp=AM15G())
-    # series = Stack(SERIES(layer1, layer2), name='Series')
-
-    # cell1 = Stack(layer1, name='Cell 1')
-    # cell2 = Stack(layer2, name='Cell 2')
-
-    # parallel.solve()
-    # series.solve()
-    # print(layer1.properties['Voc'])
-    # print(series.properties)
-    # cell1.solve()
-    # cell2.solve()
-
-    # fig, ax = plot_iv(layer1, layer2, series)
-    # ax.set_xlim([0, 2])
-    # plot_iv(cell1)
-    # plt.show()
-    #
-    # plot_eqe(layer1, layer2, parallel)
-    # plt.show()
-
-    def ff(voc):
-        print(voc)
-        voc = q / (k * 298) * voc
-        print((voc - np.log(voc + 0.72))/(voc + 1))
-
-    layer1s = Layer('Cell 1 Series', 2.00)
-    layer1m = Layer('Cell 1 Mixed', 2.34)
-    layer2s = Layer('Cell 2 Series', 1.49)
-    layer2m = Layer('Cell 2 Mixed', 1.58)
-    layer3 = Layer('Cell 3', 1.1)
+    layer1 = Layer('Cell 1 (1.71 eV)', bandgap=1.71, iqe=1, Rs=0, Rsh=np.inf)
+    layer2 = Layer('Cell 2 (1.10 eV)', bandgap=1.1, iqe=1, Rs=0, Rsh=np.inf)
+    layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=0.8, delta_lambda=20)
+    layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=0.8, delta_lambda=20)
 
     lamp = AM15G()
-    series = Stack(SERIES(SERIES(layer1s, layer2s), layer3), name='Series', lamp=lamp.copy())
-    mixed = Stack(PARALLEL(layer1m, SERIES(layer2m, layer3)), name='Mixed', lamp=lamp.copy())
-    series.solve()
-    mixed.solve()
-    fig, ax = plot_iv(mixed, layer1m, layer2m, layer3)
+    fig, ax = lamp.plot()
+    lamp2 = lamp.modify_clarity(0.5)
+    lamp2.plot(figax=(fig, ax))
+    lamp3 = Lamp.from_smarts(2025, 6, 21, 12, 51.5, 0, 0, 0)
+    lamp3.plot(figax=(fig, ax))
+    parallel = Stack(PARALLEL(layer1, layer2), name='Parallel', lamp=AM15G())
+    series = Stack(SERIES(layer1, layer2), name='Series')
 
-    ff(series.voc())
+    cell1 = Stack(layer1, name='Cell 1')
+    cell2 = Stack(layer2, name='Cell 2')
 
-    # lamp.spectrum[lamp.irradiance_name] = lamp.spectrum[lamp.irradiance_name] * 0.1
-    lamp = lamp.modify_clarity(0)
-    series = Stack(SERIES(SERIES(layer1s, layer2s), layer3), name='Series', lamp=lamp.copy())
-    mixed = Stack(PARALLEL(layer1m, SERIES(layer2m, layer3)), name='Mixed', lamp=lamp.copy())
+    parallel.solve()
     series.solve()
-    mixed.solve()
-    plot_iv(mixed, layer1m, layer2m, layer3, figax=(fig, ax), linestyle='--')
+    print(layer1.properties['Voc'])
+    print(series.properties)
+    cell1.solve()
+    cell2.solve()
+
+    fig, ax = plot_iv(layer1, layer2, series)
+    ax.set_xlim([0, 2])
+    plot_iv(cell1)
     plt.show()
 
-    ff(series.voc())
+    plot_eqe(layer1, layer2, parallel)
+    plt.show()
+
+    # def ff(voc):
+    #     print(voc)
+    #     voc = q / (k * 298) * voc
+    #     print((voc - np.log(voc + 0.72))/(voc + 1))
+    #
+    # layer1s = Layer('Cell 1 Series', 2.00)
+    # layer1m = Layer('Cell 1 Mixed', 2.34)
+    # layer2s = Layer('Cell 2 Series', 1.49)
+    # layer2m = Layer('Cell 2 Mixed', 1.58)
+    # layer3 = Layer('Cell 3', 1.1)
+    #
+    # lamp = AM15G()
+    # series = Stack(SERIES(SERIES(layer1s, layer2s), layer3), name='Series', lamp=lamp.copy())
+    # mixed = Stack(PARALLEL(layer1m, SERIES(layer2m, layer3)), name='Mixed', lamp=lamp.copy())
+    # series.solve()
+    # mixed.solve()
+    # fig, ax = plot_iv(mixed, layer1m, layer2m, layer3)
+    #
+    # ff(series.voc())
+    #
+    # # lamp.spectrum[lamp.irradiance_name] = lamp.spectrum[lamp.irradiance_name] * 0.1
+    # lamp = lamp.modify_clarity(0)
+    # series = Stack(SERIES(SERIES(layer1s, layer2s), layer3), name='Series', lamp=lamp.copy())
+    # mixed = Stack(PARALLEL(layer1m, SERIES(layer2m, layer3)), name='Mixed', lamp=lamp.copy())
+    # series.solve()
+    # mixed.solve()
+    # plot_iv(mixed, layer1m, layer2m, layer3, figax=(fig, ax), linestyle='--')
+    # plt.show()
+    #
+    # ff(series.voc())
 
     # layer = Layer('Cell', 1.1-0.273e-3 * 0, T=273+25)
     # cell = Stack(layer, name='Single Junction', lamp=AM15G())
