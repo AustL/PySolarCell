@@ -147,8 +147,10 @@ class Layer:
 
         return solar_cell
 
-    def eqe(self):
+    def eqe(self, incident_spectrum=AM15G()):
         """Returns the external quantum efficiency of the cell as a function of wavelength
+
+        :param incident_spectrum: The incident spectrum to the entire stack, defaults to AM15G
 
         :return: Quantum efficiency (%) as a function of wavelength
         """
@@ -157,7 +159,7 @@ class Layer:
             print('Warning: You must convert this layer to a solar cell first.')
 
         EQE = self.properties['EQE']
-        return EQE[0], EQE[1] / self.properties['Incident Spectrum'].irradiances() * 100
+        return EQE[0], EQE[1] / incident_spectrum.irradiances() * 100
 
     def jv(self):
         """Returns the JV curve of the cell as a tuple (voltages, currents)
@@ -256,15 +258,15 @@ class Stack:
 
         return self.properties['JV']
 
-    def eqe(self):
+    def eqe(self, incident_spectrum=AM15G()):
         if 'EQE' not in self.properties.keys():
             wavelengths = None
             EQE = None
             for layer in self.flattened_layers:
                 if EQE is None:
-                    wavelengths, EQE = layer.eqe()
+                    wavelengths, EQE = layer.eqe(incident_spectrum)
                 else:
-                    EQE += layer.eqe()[1]
+                    EQE += layer.eqe(incident_spectrum)[1]
 
             self.properties['EQE'] = (wavelengths, EQE)
 
@@ -543,11 +545,12 @@ def plot_iv(*layers, figax=None, linestyle='-'):
     return fig, ax
 
 
-def plot_eqe(*layers, figax=None):
+def plot_eqe(*layers, figax=None, incident_spectrum=AM15G()):
     """Plots the external quantum efficiency for all layers in layers
 
     :param layers: The list of layers or stacks to plot
-    :param figax: Tuple of figure and axes (optionaL)
+    :param figax: Tuple of figure and axes (optional)
+    :param incident_spectrum: Incident spectrum to the entire stack, defaults to AM1.5G
     :return: Figure and axes for further modification
     """
     if figax is None:
@@ -557,12 +560,12 @@ def plot_eqe(*layers, figax=None):
         fig, ax = figax
 
     for layer in layers:
-        ax.plot(*layer.eqe(), label=layer.name)
-        ax.fill_between(*layer.eqe(), 0, alpha=0.2)
+        ax.plot(*layer.eqe(incident_spectrum), label=layer.name)
+        ax.fill_between(*layer.eqe(incident_spectrum), 0, alpha=0.2)
 
     ax.legend()
     ax.set_xlabel('Wavelength (nm)')
-    ax.set_ylabel('EQE (%)')
+    ax.set_ylabel('EQE ($\\%$)')
 
     return fig, ax
 
@@ -574,31 +577,31 @@ if __name__ == '__main__':
     layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=0.8, delta_lambda=20)
     layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=0.8, delta_lambda=20)
 
-    lamp = AM15G()
-    fig, ax = lamp.plot()
-    lamp2 = lamp.modify_clarity(0.5)
-    lamp2.plot(figax=(fig, ax))
-    lamp3 = Lamp.from_smarts(2025, 6, 21, 12, 51.5, 0, 0, 0)
-    lamp3.plot(figax=(fig, ax))
+    # lamp = AM15G()
+    # fig, ax = lamp.plot()
+    # lamp2 = lamp.modify_clarity(0.5)
+    # lamp2.plot(figax=(fig, ax))
+    # lamp3 = Lamp.from_smarts(2025, 6, 21, 12, 51.5, 0, 0, 0)
+    # lamp3.plot(figax=(fig, ax))
     parallel = Stack(PARALLEL(layer1, layer2), name='Parallel', lamp=AM15G())
     series = Stack(SERIES(layer1, layer2), name='Series')
 
-    cell1 = Stack(layer1, name='Cell 1')
-    cell2 = Stack(layer2, name='Cell 2')
+    # cell1 = Stack(layer1, name='Cell 1')
+    # cell2 = Stack(layer2, name='Cell 2')
 
     parallel.solve()
-    series.solve()
-    print(layer1.properties['Voc'])
-    print(series.properties)
-    cell1.solve()
-    cell2.solve()
+    # series.solve()
+    # print(layer1.properties['Voc'])
+    # print(series.properties)
+    # cell1.solve()
+    # cell2.solve()
 
-    fig, ax = plot_iv(layer1, layer2, series)
-    ax.set_xlim([0, 2])
-    plot_iv(cell1)
-    plt.show()
+    # fig, ax = plot_iv(layer1, layer2, series)
+    # ax.set_xlim([0, 2])
+    # plot_iv(cell1)
+    # plt.show()
 
-    plot_eqe(layer1, layer2, parallel)
+    plot_eqe(layer1, layer2)
     plt.show()
 
     # def ff(voc):
