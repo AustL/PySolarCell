@@ -96,7 +96,7 @@ class Layer:
         :param light_spectrum: The incident spectrum
         :return: The solar cell from the layer AND changes the spectrum in-place
         """
-        self.properties['Incident Spectrum'] = lamp.copy()
+        self.properties['Incident Spectrum'] = light_spectrum.copy()
 
         Eg = self.bandgap * q  # Energy in J
         u = Eg / (k * self.T)
