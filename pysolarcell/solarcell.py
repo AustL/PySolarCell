@@ -1,8 +1,8 @@
-import sympy as sp
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.integrate
 import scipy.interpolate
+from scipy.optimize import newton
 
 from pysolarcell.spectra import Lamp, AM0, AM15G, AM15D, LED1, LED2
 from pysolarcell.materials import Material, PEROVSKITE, SILICON
@@ -414,14 +414,14 @@ class SolarCell:
             self.I = lambda v: self.Isc - self.I0 * (np.exp(q * v / (self.n * k * self.T)) - 1)
             return
 
-        I = sp.Symbol('I')
         result = np.zeros_like(self.voltages, dtype=np.float64)
 
         for index, v in enumerate(self.voltages):
-            guess = self.Isc - self.I0 * (sp.exp(q * v / (self.n * k * self.T)) - 1)
-            result[index] = sp.nsolve(self.Isc
-                                      - self.I0 * (sp.exp((v + I * self.Rs) / (self.n * k * self.T / q)) - 1)
-                                      - (v + I * self.Rs) / self.Rsh - I, guess)
+            def f(I):
+                return self.Isc - self.I0 * (np.exp((v + I * self.Rs) / (self.n * k * self.T / q)) - 1) - (v + I * self.Rs) / self.Rsh - I
+
+            guess = self.Isc - self.I0 * (np.exp(q * v / (self.n * k * self.T)) - 1)
+            result[index] = newton(f, guess)
 
         self.I = scipy.interpolate.interp1d(self.voltages, result, fill_value='extrapolate')
 
@@ -433,14 +433,14 @@ class SolarCell:
             self.V = lambda i: (self.n * k * self.T) / q * np.log((self.Isc - i) / self.I0 + 1)
             return
 
-        V = sp.Symbol('V')
         result = np.zeros_like(self.currents, dtype=np.float64)
 
         for index, i in enumerate(self.currents):
-            guess = (self.n * k * self.T) / q * sp.log((self.Isc - i) / self.I0 + 1)
-            result[index] = sp.nsolve(self.Isc
-                                      - self.I0 * (sp.exp((V + i * self.Rs) / (self.n * k * self.T / q)) - 1)
-                                      - (V + i * self.Rs) / self.Rsh - i, guess)
+            def f(V):
+                return self.Isc - self.I0 * (np.exp((V + i * self.Rs) / (self.n * k * self.T / q)) - 1) - (V + i * self.Rs) / self.Rsh - i
+
+            guess = (self.n * k * self.T) / q * np.log((self.Isc - i) / self.I0 + 1)
+            result[index] = newton(f, guess)
 
         self.V = scipy.interpolate.interp1d(self.currents, result, fill_value='extrapolate')
 
@@ -572,10 +572,10 @@ def plot_eqe(*layers, figax=None, incident_spectrum=AM15G()):
 if __name__ == '__main__':
     plt.close('all')
     import pandas as pd
-    layer1 = Layer('Cell 1 (1.71 eV)', bandgap=1.71, iqe=1, Rs=0, Rsh=np.inf)
-    layer2 = Layer('Cell 2 (1.10 eV)', bandgap=1.1, iqe=1, Rs=0, Rsh=np.inf)
-    layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=0.8, delta_lambda=20)
-    layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=0.8, delta_lambda=20)
+    # layer1 = Layer('Cell 1 (1.71 eV)', bandgap=1.71, iqe=1, Rs=0, Rsh=np.inf)
+    # layer2 = Layer('Cell 2 (1.10 eV)', bandgap=1.1, iqe=1, Rs=0, Rsh=np.inf)
+    # layer1 = Layer('Cell 1 (3.00 eV)', bandgap=1.63, iqe=0.8, delta_lambda=20)
+    # layer2 = Layer('Cell 2 (1.77 eV)', bandgap=0.97, iqe=0.8, delta_lambda=20)
 
     # lamp = AM15G()
     # fig, ax = lamp.plot()
@@ -583,13 +583,13 @@ if __name__ == '__main__':
     # lamp2.plot(figax=(fig, ax))
     # lamp3 = Lamp.from_smarts(2025, 6, 21, 12, 51.5, 0, 0, 0)
     # lamp3.plot(figax=(fig, ax))
-    parallel = Stack(PARALLEL(layer1, layer2), name='Parallel', lamp=AM15G())
-    series = Stack(SERIES(layer1, layer2), name='Series')
+    # parallel = Stack(PARALLEL(layer1, layer2), name='Parallel', lamp=AM15G())
+    # series = Stack(SERIES(layer1, layer2), name='Series')
 
     # cell1 = Stack(layer1, name='Cell 1')
     # cell2 = Stack(layer2, name='Cell 2')
 
-    parallel.solve()
+    # parallel.solve()
     # series.solve()
     # print(layer1.properties['Voc'])
     # print(series.properties)
@@ -601,8 +601,23 @@ if __name__ == '__main__':
     # plot_iv(cell1)
     # plt.show()
 
-    plot_eqe(layer1, layer2)
-    plt.show()
+    # plot_eqe(layer1, layer2)
+    # plt.show()
+
+    Rs = 1
+    Rsh = 1e4
+    layer1s = Layer('Cell 1 Series', 2.00, Rs=Rs, Rsh=Rsh)
+    layer1m = Layer('Cell 1 Mixed', 2.34, Rs=Rs, Rsh=Rsh)
+    layer2s = Layer('Cell 2 Series', 1.49, Rs=Rs, Rsh=Rsh)
+    layer2m = Layer('Cell 2 Mixed', 1.58, Rs=Rs, Rsh=Rsh)
+    layer3s = Layer('Cell 3 Series', 1.1, Rs=Rs, Rsh=Rsh)
+    layer3m = Layer('Cell 3 Mixed', 1.1, Rs=Rs, Rsh=Rsh)
+
+    series = Stack(SERIES(SERIES(layer1s, layer2s), layer3s), name='Series')
+    mixed = Stack(PARALLEL(layer1m, SERIES(layer2m, layer3m)), name='Mixed')
+
+    series.solve()
+    mixed.solve()
 
     # def ff(voc):
     #     print(voc)
