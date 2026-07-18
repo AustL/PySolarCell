@@ -452,13 +452,13 @@ class SolarCell:
     def mpp(self):
         """Finds the maximum power point of the solar cell
 
-        :return: Tuple of ((voltage, current), maximum power)
+        :return: Tuple of ((voltage, current), maximum power) in ((V, mA/cm^2), mW/cm^2)
         """
         currents = self.I(self.voltages)
         max_index = np.argmax(self.voltages * currents)
 
-        return (self.voltages[max_index], self.ItoJ(currents[max_index])), self.voltages[max_index] * currents[
-            max_index]
+        return (self.voltages[max_index], self.ItoJ(currents[max_index])), self.voltages[max_index] * self.ItoJ(currents[
+            max_index])
 
     def ff(self):
         """Finds the fill factor of the solar cell
@@ -618,6 +618,8 @@ if __name__ == '__main__':
 
     series.solve()
     mixed.solve()
+
+    print(layer1s.ff())
 
     # def ff(voc):
     #     print(voc)
