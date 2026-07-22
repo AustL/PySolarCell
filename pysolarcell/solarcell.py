@@ -134,8 +134,9 @@ class Layer:
 
         solar_cell = SolarCell(Jsc, Voc, area=self.area, Rs=self.Rs, Rsh=self.Rsh, T=self.T, n=self.n)
 
-        self.properties['Jsc'] = Jsc
-        self.properties['Voc'] = Voc
+        actual_jsc, actual_voc = solar_cell.jsc_voc()
+        self.properties['Jsc'] = actual_jsc
+        self.properties['Voc'] = actual_voc
         self.properties['JV'] = solar_cell.jv()
         self.properties['FF'] = solar_cell.ff()
         self.properties['MPP'] = solar_cell.mpp()
@@ -473,6 +474,14 @@ class SolarCell:
 
         return self.mpp()[1] / (jsc * voc) * 100
 
+    def jsc_voc(self):
+        voltages, currents = self.jv()
+        jv_func = scipy.interpolate.interp1d(voltages, currents, fill_value='extrapolate')
+        jsc = jv_func(0)
+        voc = voltages[np.argmin(np.abs(currents))]
+
+        return jsc, voc
+
     def ItoJ(self, current):
         return current * 1000 / self.area
 
@@ -604,8 +613,9 @@ if __name__ == '__main__':
     # plot_eqe(layer1, layer2)
     # plt.show()
 
-    Rs = 1
-    Rsh = 1e4
+    lamp = AM15G().modify_clarity(0)
+    Rs = 10
+    Rsh = 1e3
     layer1s = Layer('Cell 1 Series', 2.00, Rs=Rs, Rsh=Rsh)
     layer1m = Layer('Cell 1 Mixed', 2.34, Rs=Rs, Rsh=Rsh)
     layer2s = Layer('Cell 2 Series', 1.49, Rs=Rs, Rsh=Rsh)
@@ -613,13 +623,15 @@ if __name__ == '__main__':
     layer3s = Layer('Cell 3 Series', 1.1, Rs=Rs, Rsh=Rsh)
     layer3m = Layer('Cell 3 Mixed', 1.1, Rs=Rs, Rsh=Rsh)
 
-    series = Stack(SERIES(SERIES(layer1s, layer2s), layer3s), name='Series')
-    mixed = Stack(PARALLEL(layer1m, SERIES(layer2m, layer3m)), name='Mixed')
+    series = Stack(SERIES(SERIES(layer1s, layer2s), layer3s), name='Series', lamp=lamp.copy())
+    mixed = Stack(PARALLEL(layer1m, SERIES(layer2m, layer3m)), name='Mixed', lamp=lamp.copy())
 
     series.solve()
     mixed.solve()
-
-    print(layer1s.ff())
+    print(layer1m.properties['FF'])
+    print(layer1m.mpp())
+    plot_iv(layer1m)
+    plt.show()
 
     # def ff(voc):
     #     print(voc)
