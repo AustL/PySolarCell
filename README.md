@@ -21,4 +21,4 @@ If you receive no errors, the installation was successful.
 If you find this software useful in helping you produce any scientific
 publication, please cite this repository at:
 
-Lin, A. (2026). PySolarCell (v1.3.1). Zenodo. https://doi.org/10.5281/zenodo.18603671
+Lin, A. (2026). PySolarCell (v1.5.2). Zenodo. [https://doi.org/10.5281/zenodo.18603671](https://doi.org/10.5281/zenodo.18603670)
