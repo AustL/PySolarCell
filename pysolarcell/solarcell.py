@@ -615,7 +615,7 @@ if __name__ == '__main__':
 
     lamp = AM15G().modify_clarity(0)
     Rs = 10
-    Rsh = 1e3
+    Rsh = 1e4
     layer1s = Layer('Cell 1 Series', 2.00, Rs=Rs, Rsh=Rsh)
     layer1m = Layer('Cell 1 Mixed', 2.34, Rs=Rs, Rsh=Rsh)
     layer2s = Layer('Cell 2 Series', 1.49, Rs=Rs, Rsh=Rsh)
@@ -628,9 +628,8 @@ if __name__ == '__main__':
 
     series.solve()
     mixed.solve()
-    print(layer1m.properties['FF'])
-    print(layer1m.mpp())
-    plot_iv(layer1m)
+    print(layer3m.properties['FF'])
+    plot_iv(layer3m)
     plt.show()
 
     # def ff(voc):
